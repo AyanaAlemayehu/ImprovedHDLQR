@@ -40,20 +40,25 @@ SOFTWARE.
 #include "tpg.h"
 #include "vdma.h"
 #include "gamma_lut.h"
+#include <sleep.h>
+#include <stdbool.h>
 
 int main() {
     init_platform();
 
 
-    volatile unsigned int* thresh_pointer = (volatile unsigned int*) 0xa0060000;
 
-    if (thresh_pointer[3] != 0xdeadbeef){
+    volatile unsigned int* axi_regs_pointer = (volatile unsigned int*) 0xa0060000;
+
+
+    if (axi_regs_pointer[3] != 0xdeadbeef){
     	xil_printf("Warning, was not able to read correct test value from threshold IP\r\n");
     }
 
     // this might need to be wrapped in a while loop?
-    thresh_pointer[0] = 512;
+    axi_regs_pointer[0] = 512;
 
+//    axi_regs_pointer[1] = 24; // write something random to trigger a photo taken
 
     xil_printf("Starting...\r\n");
     displayport_init();
@@ -67,6 +72,27 @@ int main() {
 	imx219_init();
 
 	xil_printf("Entire video pipeline activated\r\n");
+    xil_printf("Reading from BRAM\r\n");
+    int photo_trigger = 0;
+    int base = 220;
+    while (1){
+        xil_printf("New Frame %d \r\n", photo_trigger);
+        axi_regs_pointer[1] = photo_trigger; // write something random to trigger a photo taken (hopefully this works)
+
+        for (int line = 0; line < 50; line++){
+            for (int col = 0; col < 200; col++){
+                axi_regs_pointer[2] = 640*(base + line) + col;
+                usleep(1000);
+                xil_printf("%d", axi_regs_pointer[3]);
+            }
+            xil_printf("\r\n");
+        }
+        xil_printf("Frame End \r\n");
+        usleep(2000*1000);
+        photo_trigger++;
+    }
+
+    xil_printf("concludes bram read\r\n");
 
     cleanup_platform();
     return 0;
